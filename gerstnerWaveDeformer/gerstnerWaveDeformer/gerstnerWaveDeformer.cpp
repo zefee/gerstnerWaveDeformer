@@ -13,7 +13,7 @@ MObject GerstnerWave::aDecay;
 MObject GerstnerWave::aSpeed;
 
 
-GerstnerWave::GerstnerWave() 
+GerstnerWave::GerstnerWave()
 {
 
 }
@@ -29,24 +29,11 @@ void* GerstnerWave::creator()
 }
 
 
-MStatus  GerstnerWave::deform( MDataBlock& data, MItGeometry& itGeo,
-								const MMatrix& localToWorldMatrix,
-								unsigned int geomIndex)
+MStatus  GerstnerWave::deform(MDataBlock& data, MItGeometry& itGeo,
+	const MMatrix& localToWorldMatrix,
+	unsigned int geomIndex)
 {
 	MStatus status;
-
-	MDataHandle hMesh = data.inputValue(aMesh, &status);
-	CHECK_MSTATUS_AND_RETURN_IT(status);
-	MObject oMesh = hMesh.asMesh();
-	if (oMesh.isNull())
-	{
-		return MS::kSuccess;
-	}
-
-	MFnMesh fnMesh(oMesh, &status);
-	CHECK_MSTATUS_AND_RETURN_IT(status);
-	MPointArray thisMesh;
-	fnMesh.getPoints(thisMesh);
 
 	float waveLength = data.inputValue(aWaveLength).asFloat();
 	float numWaves = data.inputValue(aNumWaves).asFloat();
@@ -57,40 +44,30 @@ MStatus  GerstnerWave::deform( MDataBlock& data, MItGeometry& itGeo,
 	float frame = data.inputValue(aFrame).asFloat();
 	float* aNewDirection = data.inputValue(aDirection).asFloat3();
 
-	MFloatVector direction;
-	direction.get(aNewDirection);
-
-	double wl = (M_PI * 2) / waveLength;
-	double nWaves = (M_PI * 2) * numWaves;
-
-	float dotDirection = direction * direction;
-
-	float Q = steepness / (waveLength * amplitude) * numWaves;
-	float phase = (speed * waveLength) * frame;
-	
-	float repeater = (dotDirection * waveLength) + phase;
-	float decayer = exp(decay * dotDirection);
-
-	double cosRep = cos(repeater);
-	double sinRep = sin(repeater);
-	double dirX = direction(0);
-	double dirY = direction(1);
-	double dirXCosRep = dirX * cosRep;
-	double dirYCosRep = dirY * cosRep;
-	float middleMul = amplitude * decay * sinRep;
-
-
-
-	MPoint wave (Q * (amplitude * dirXCosRep),
-		middleMul,
-		Q * (amplitude * dirYCosRep));
-
 	MPoint point;
+
+	MVector direction(aNewDirection);
+	//MFloatVector direction(aNewDirection);
+
 	for (; !itGeo.isDone(); itGeo.next())
 	{
 		point = itGeo.position();
 
-		point += (thisMesh[itGeo.index()] - point) + wave;
+		double wl = (M_PI * 2) / waveLength;
+		double nWaves = (M_PI * 2) * numWaves;
+
+		double dotXY = direction * point;
+
+		double Q = steepness / (wl * amplitude) * nWaves;
+		double phase = (speed * wl) * frame;
+
+		double waveX = ((Q * amplitude) * direction.x * cos(wl * dotXY) + phase);
+		double waveZ = amplitude * sin((waveLength * dotXY) + phase);
+		double waveY = ((Q * amplitude) * direction.y * cos(wl * dotXY) + phase);
+
+		MPoint wave(waveX, waveY, waveZ);
+
+		point += wave;
 
 		itGeo.setPosition(point);
 	}
@@ -105,7 +82,7 @@ MStatus GerstnerWave::initialise()
 
 	MFnNumericAttribute nAttr;
 	MFnTypedAttribute tAttr;
-	
+
 
 	aMesh = tAttr.create("waveMesh", "waveMesh", MFnData::kMesh);
 	addAttribute(aMesh);
@@ -125,6 +102,16 @@ MStatus GerstnerWave::initialise()
 	nAttr.setKeyable(true);
 	addAttribute(aAmplitude);
 	attributeAffects(aAmplitude, outputGeom);
+
+	aNumWaves = nAttr.create("numWaves", "numWaves", MFnNumericData::kFloat);
+	nAttr.setKeyable(true);
+	addAttribute(aNumWaves);
+	attributeAffects(aNumWaves, outputGeom);
+
+	aSteepness = nAttr.create("steepness", "steepness", MFnNumericData::kFloat);
+	nAttr.setKeyable(true);
+	addAttribute(aSteepness);
+	attributeAffects(aSteepness, outputGeom);
 
 	aWaveLength = nAttr.create("waveLength", "waveLength", MFnNumericData::kFloat);
 	nAttr.setKeyable(true);
