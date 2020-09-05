@@ -15,7 +15,8 @@ MObject GerstnerWave::aSpeed;
 
 GerstnerWave::GerstnerWave()
 {
-
+	nPoints = 0;
+	initialised = false;
 }
 
 GerstnerWave::~GerstnerWave()
@@ -28,11 +29,23 @@ void* GerstnerWave::creator()
 	return new GerstnerWave();
 }
 
+void GerstnerWave::init(MItGeometry& itGeo)
+{
+	initialised = true;
+	for (; !itGeo.isDone(); itGeo.next())
+	{
+		points[nPoints++] = itGeo.position();
+	}
+
+}
 
 MStatus  GerstnerWave::deform(MDataBlock& data, MItGeometry& itGeo,
 	const MMatrix& localToWorldMatrix,
 	unsigned int geomIndex)
 {
+	if (!initialised)
+		init(itGeo);
+
 	MStatus status;
 
 	float waveLength = data.inputValue(aWaveLength).asFloat();
@@ -47,30 +60,32 @@ MStatus  GerstnerWave::deform(MDataBlock& data, MItGeometry& itGeo,
 	MPoint point;
 
 	MVector direction(aNewDirection);
-	//MFloatVector direction(aNewDirection);
+	direction.y = 0;
+	direction.normalize();
 
+	int currentPoint = 0;
 	for (; !itGeo.isDone(); itGeo.next())
 	{
-		point = itGeo.position();
+		point = points[currentPoint];
 
-		double wl = (M_PI * 2) / waveLength;
-		double nWaves = (M_PI * 2) * numWaves;
+		double wl =  2 / waveLength;
 
 		double dotXY = direction * point;
 
-		double Q = steepness / (wl * amplitude) * nWaves;
+		double Q = steepness / ((wl * amplitude) * numWaves);
 		double phase = (speed * wl) * frame;
 
-		double waveX = ((Q * amplitude) * direction.x * cos(wl * dotXY) + phase);
+		double waveX = (Q * amplitude) * direction.x * cos(wl * dotXY + phase);
 		double waveZ = amplitude * sin((waveLength * dotXY) + phase);
-		double waveY = ((Q * amplitude) * direction.y * cos(wl * dotXY) + phase);
+		double waveY = (Q * amplitude) * direction.z * cos(wl * dotXY + phase);
 
-		MPoint wave(waveX, waveY, waveZ);
+		MPoint wave(waveX, waveZ, waveY);
 
 		point += wave;
 
 		itGeo.setPosition(point);
-	}
+		currentPoint++;
+	} 
 
 
 	return MS::kSuccess;

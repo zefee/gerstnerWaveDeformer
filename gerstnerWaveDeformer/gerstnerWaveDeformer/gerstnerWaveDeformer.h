@@ -23,6 +23,11 @@ public:
 
 	static MStatus initialise();
 
+	bool initialised;
+	void init(MItGeometry& itGeo);
+	MPoint points[50000];
+	int nPoints;
+
 	static MTypeId id;
 
 	static MObject aMesh;
